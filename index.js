@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -29,9 +29,23 @@ async function run() {
     
     const menuCollection = client.db("bistroDB").collection('menu');
     const reviewsCollection= client.db("bistroDB").collection('reviews');
+    const cartCollection = client.db("bistroDB").collection('cart');
+
+    app.post('/carts',async(req,res)=>{
+      const cartItem=req.body
+ 
+      const result=await cartCollection.insertOne(cartItem)
+      res.send(result)
+    })
+    //get cart collection
+    app.get('/cart',async(req,res)=>{
+      const email=req.query.email
+      const query={email:email}
+      const result=await cartCollection.find(query).toArray()
+      res.send(result)
+
+    })
     
-
-
 //Menu collection Get
 app.get('/menu',async(req,res)=>{
     const result=await menuCollection.find().toArray()
@@ -43,6 +57,15 @@ app.get('/menu',async(req,res)=>{
 app.get('/review',async(req,res)=>{
     const result=await reviewsCollection.find().toArray()
     res.send(result)
+})
+
+//item dele by dashboard in
+
+app.delete('/carts/:id',async(req,res)=>{
+  const id=req.params.id
+  const query={_id:new ObjectId(id)}
+  const result=await cartCollection.deleteOne(query)
+  res.send(result)
 })
 
 
@@ -61,6 +84,9 @@ app.get('/review',async(req,res)=>{
   }
 }
 
+//cart collection
+
+
 // Run MongoDB connection setup
 run();
 
@@ -75,3 +101,8 @@ app.get('/', (req, res) => {
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
+
+//**
+// ....................Nameing convention
+
+//  */
