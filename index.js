@@ -26,10 +26,36 @@ async function run() {
     await client.connect();
     console.log("Connected to MongoDB!");
 
-    
+    const userCollection = client.db("bistroDB").collection('users');
     const menuCollection = client.db("bistroDB").collection('menu');
     const reviewsCollection= client.db("bistroDB").collection('reviews');
     const cartCollection = client.db("bistroDB").collection('cart');
+
+
+// all user get
+
+app.get('/allusers',async(req,res)=>{
+  const result=await userCollection.find().toArray()
+  res.send(result)
+})
+
+//user related Api
+
+app.post('/user',async(req,res)=>{
+  const user=req.body
+  //insert email if user doesnt exists:
+  //you can do this many way(1.email unique,2.upsert 3.simple checking)
+  const query={email:user.email}
+  const existsingUser=await userCollection.findOne(query)
+  if(existsingUser){
+    return res.send({message:'user already exist',insertedId:null})
+  }
+  const result=await userCollection.insertOne(user)
+  res.send(result)
+})
+
+
+
 
     app.post('/carts',async(req,res)=>{
       const cartItem=req.body
