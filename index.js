@@ -6,7 +6,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 const app = express();
 const port = process.env.PORT || 5000;
-
+const stripe=require('stripe')(process.env.STRIPE_SECRET_KEY)
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -26,14 +26,14 @@ const client = new MongoClient(uri, {
 // Connect and run server logic
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
     console.log("Connected to MongoDB!");
 
     const userCollection = client.db("bistroDB").collection("users");
     const menuCollection = client.db("bistroDB").collection("menu");
     const reviewsCollection = client.db("bistroDB").collection("reviews");
     const cartCollection = client.db("bistroDB").collection("cart");
-
+     const paymentCollection=client.db("bistroDB").collection("payment");
     // 🔐 Middleware: Verify JWT
     const verifyToken = (req, res, next) => {
       const authHeader = req.headers.authorization;
@@ -205,8 +205,81 @@ async function run() {
       res.send(result);
     });
 
+
+//payment intent
+
+app.post('/create-payment-intent',async(req,res)=>{
+  const {price}=req.body
+  const amount=parseInt(price*100)
+console.log(amount)
+
+if (amount < 50) {
+  return res.status(400).send({
+    error: "Amount must be at least $0.50 USD"
+  });
+}
+  const paymentItent=await stripe.paymentIntents.create({
+    amount:amount,
+    currency: "usd",
+    "payment_method_types": [
+      "card"
+     
+    ],
+  })
+  res.send({
+    clientSecret:paymentItent.client_secret,
+  });
+})
+
+
+//payment related api
+const { ObjectId } = require('mongodb');
+
+app.post('/payments', async (req, res) => {
+  const payment = req.body;
+  console.log(payment);
+
+  const paymentResult = await paymentCollection.insertOne(payment);
+
+  // Convert cartids (assumed to be strings) to ObjectId
+  const cartItemIds = payment.cartids.map(id => new ObjectId(String(id)));
+
+  const query = { _id: { $in: cartItemIds } };
+
+  const deleteResult = await cartCollection.deleteMany(query);
+
+  res.send({ paymentResult, deleteResult });
+});
+
+
+
+app.get('/history/:email',async(req,res)=>{
+  const email=req.params.email
+
+  const query={ email:req.params.email}
+  const result=await paymentCollection.find(query).toArray()
+  res.send(result)
+
+})
+
+//sats-admin collection
+app.get('/admin-sats',async(req,res)=>{
+  const users=await userCollection.estimatedDocumentCount()
+  const menuItems=await menuCollection.estimatedDocumentCount()
+  const orders=await paymentCollection.estimatedDocumentCount()
+  //this is the not way
+  const payment=await paymentCollection.find().toArray()
+  const revinue=payment.reduce((total,payment)=>total+payment.price,0)
+
+  res.send({users,menuItems,orders,revinue})
+})
+
+
+
+
+
     // ✅ Get Reviews
-    app.get("/review", async (req, res) => {
+    app.get("/review",verifyToken, async (req, res) => {
       const result = await reviewsCollection.find().toArray();
       res.send(result);
     });
